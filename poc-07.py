@@ -14,7 +14,7 @@ class Message(object):
     def __init__(self, uid=None, body=None, flags=None):
         self.uid = uid
         self.body = body
-        self.flags = {'read': False, 'important': False}
+        self.flags = {'read': None, 'important': None, 'deleted': None}
 
     def __repr__(self):
         return "<Message %s [%s] '%s'>"% (self.uid, self.flags, self.body)
@@ -38,17 +38,24 @@ class Message(object):
 
         return True # Identical
 
+    def markRead(self):
+        self.flags['read'] = True
+
     def markImportant(self):
         self.flags['important'] = True
 
-    def markRead(self):
-        self.flags['read'] = True
+    def markDeleted(self):
+        self.flags['deleted'] = True
+
+    def unmarkRead(self):
+        self.flags['read'] = False
 
     def unmarkImportant(self):
         self.flags['important'] = False
 
-    def unmarkRead(self):
-        self.flags['read'] = False
+    def readChanges(self):
+        return [self.flags['read'], self.flags['important'],
+                self.flags['deleted']]
 
 
 class Messages(UserList):
@@ -200,6 +207,16 @@ class Engine(object):
         print("- from left: %s"% leftMessages)
         print("- from rght: %s"% rightMessages)
 
+        for leftMessage in leftMessages:
+            for rightMessage in rightMessages:
+                if leftMessage.uid == rightMessage.uid:
+                    leftChanges = leftMessage.readChanges()
+                    rightChanges = rightMessage.readChanges()
+                    change = []
+                    for leftChange, rightChange in leftChanges, rightChanges:
+                        #FIXME: update changes in change and alter leftMessages
+                        # and rightMessages
+
         self.left.update(rightMessages)
         self.right.update(leftMessages)
 
@@ -224,6 +241,7 @@ if __name__ == '__main__':
 
     leftMessages = Messages([m1l, m2l])
     rghtMessages = Messages([m1r, m2r, m3r])
+    m3r.markRead()
 
     # Fill both sides with pre-existing data.
     left = Driver(leftMessages) # Fake those data.
