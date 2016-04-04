@@ -14,7 +14,7 @@ class Message(object):
     def __init__(self, uid=None, body=None, flags=None):
         self.uid = uid
         self.body = body
-        self.flags = {'read': None, 'important': None, 'deleted': None}
+        self.flags = {'read': False, 'important': False, 'delete': False}
 
     def __repr__(self):
         return "<Message %s [%s] '%s'>"% (self.uid, self.flags, self.body)
@@ -38,24 +38,23 @@ class Message(object):
 
         return True # Identical
 
-    def markRead(self):
-        self.flags['read'] = True
-
     def markImportant(self):
         self.flags['important'] = True
 
-    def markDeleted(self):
-        self.flags['deleted'] = True
+    def markRead(self):
+        self.flags['read'] = True
 
-    def unmarkRead(self):
-        self.flags['read'] = False
+    def deleteMessage(self):
+        self.flags['delete'] = True
 
     def unmarkImportant(self):
         self.flags['important'] = False
 
-    def readChanges(self):
-        return [self.flags['read'], self.flags['important'],
-                self.flags['deleted']]
+    def unmarkRead(self):
+        self.flags['read'] = False
+
+    def undeleteMessage(self):
+        self.flags['delete'] = False
 
 
 class Messages(UserList):
@@ -86,6 +85,12 @@ class Storage(object):
 
         #FIXME: updates and new messages are handled. Not the deletions.
 
+        if newMessage.flags['delete']:
+            for message in self.messages:
+                if message.uid == newMessage.uid:
+                    message.flags['delete'] = True
+                    return
+
         if newMessage not in self.messages:
             self.messages.append(newMessage)
             return
@@ -98,6 +103,10 @@ class Storage(object):
                 return
 
         assert("should never hit this point")
+
+    def delete(self):
+        self.messages = Messages(filter(lambda message: not message.flags['delete'], self.messages))
+        return
 
 
 class StateDriver(Storage):
@@ -145,11 +154,13 @@ class StateController(object):
                 self.theirState.update(theirMessage) # Would be async.
             except:
                 raise # Would handle or warn.
+        self.driver.delete()
+        self.theirState.delete()
 
     #FIXME: we are lying around. The real search() should return full
     # messages or have parameter to set what we request exactly.
     # For the sync we need to know what was changed.
-    def getChanges(self):
+    def search(self):
         """Explore our messages. Only return changes since previous sync."""
 
         changedMessages = Messages() # Collection of new, deleted and updated messages.
@@ -171,12 +182,12 @@ class StateController(object):
                     if message.uid == stateMessage.uid:
                         if not message.identical(stateMessage):
                             changedMessages.append(message)
-                            break #There is no point of iterating further.
+                        break # There is no point of iterating further.
 
         for stateMessage in stateMessages:
             if stateMessage not in messages:
-                # TODO: mark message as destroyed from real repository.
-                changedMessages.append(message)
+                #TODO: mark message as destroyed from real repository.
+                changedMessages.append(stateMessage)
 
         return changedMessages
 
@@ -200,22 +211,12 @@ class Engine(object):
         print("state rght: %s"% self.right.state.messages)
 
     def run(self):
-        leftMessages = self.left.getChanges() # Would be async.
-        rightMessages = self.right.getChanges() # Would be async.
+        leftMessages = self.left.search() # Would be async.
+        rightMessages = self.right.search() # Would be async.
 
         print("## Changes:")
         print("- from left: %s"% leftMessages)
         print("- from rght: %s"% rightMessages)
-
-        for leftMessage in leftMessages:
-            for rightMessage in rightMessages:
-                if leftMessage.uid == rightMessage.uid:
-                    leftChanges = leftMessage.readChanges()
-                    rightChanges = rightMessage.readChanges()
-                    change = []
-                    for leftChange, rightChange in leftChanges, rightChanges:
-                        #FIXME: update changes in change and alter leftMessages
-                        # and rightMessages
 
         self.left.update(rightMessages)
         self.right.update(leftMessages)
@@ -241,7 +242,6 @@ if __name__ == '__main__':
 
     leftMessages = Messages([m1l, m2l])
     rghtMessages = Messages([m1r, m2r, m3r])
-    m3r.markRead()
 
     # Fill both sides with pre-existing data.
     left = Driver(leftMessages) # Fake those data.
@@ -260,3 +260,7 @@ if __name__ == '__main__':
     engine.debug("# Run of PASS 2: done.")
 
     #TODO: PASS 3 with changed messages.
+    m3r.deleteMessage()
+    print("\n# PASS 3")
+    engine.run()
+    engine.debug("# Run of PASS 3: done.")
