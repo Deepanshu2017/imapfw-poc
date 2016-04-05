@@ -240,6 +240,32 @@ class Engine(object):
         print("- from left: %s"% leftMessages)
         print("- from rght: %s"% rightMessages)
 
+        for leftMessage in leftMessages:
+            for rightMessage in rightMessages:
+                if leftMessage.uid == rightMessage.uid:
+                    leftChanges = leftMessage.getChanges()
+                    rightChanges = rightMessage.getChanges()
+                    changes = {'read': None, 'important': None}
+
+                    #FIXME: fix conflicts
+                    # We are here assuming that leftChanges and rightChanges
+                    # will never create conflict situation. In other words
+                    # for a particular flag either leftChanges or
+                    # rightChanges will provide value for it.
+                    for flag, value in leftChanges.items():
+                        if value != None:
+                            changes[flag] = value
+
+                    for flag, value in rightChanges.items():
+                        if value != None:
+                            changes[flag] = value
+
+                    for flag, value in changes.items():
+                        if value != None:
+                            leftMessage.mark(flag, value)
+                            rightMessage.mark(flag, value)
+
+
         self.left.update(rightMessages)
         self.right.update(leftMessages)
 
