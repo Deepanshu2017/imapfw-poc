@@ -76,6 +76,19 @@ class Message(object):
     def unmarkRead(self):
         self.flags['read'] = False
 
+    def mark(self, flag, value):
+        if flag == 'read':
+            if value == True:
+                self.markRead()
+            else:
+                self.unmarkRead()
+
+        elif flag == 'important':
+            if value == True:
+                self.markImportant()
+            else:
+                self.unmarkImportant()
+
 
 class Messages(UserList):
     """Enable collections of messages the easy way."""
@@ -189,6 +202,7 @@ class StateController(object):
                 for stateMessage in stateMessages:
                     if message.uid == stateMessage.uid:
                         if not message.identical(stateMessage):
+                            message.learnChanges(stateMessage)
                             changedMessages.append(message)
                             break #There is no point of iterating further.
 
